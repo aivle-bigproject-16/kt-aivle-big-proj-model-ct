@@ -1,0 +1,73 @@
+{
+  "_README": "스키마 계약 샘플. image/coordinate_space/cell 은 실제 manifest 값이며, detections 의 좌표·confidence 는 형식 설명용 예시입니다(실제 추론 결과 아님). 실제 산출물은 battery_infer_to_json.ipynb 실행으로 생성됩니다. model 블록은 2026-08-03 기준 CT 배포 운영점(0728 확정)이며, 실제 추론 시에는 사용된 가중치·설정으로 자동 채워집니다.",
+  "schema_version": "1.0",
+  "image": {
+    "file": "CT__CT_cell_pouch_101_y_033__ccfa129a.jpg",
+    "width": 562,
+    "height": 4000
+  },
+  "coordinate_space": {
+    "origin": "top-left",
+    "unit": "pixel",
+    "reference": "roi_image",
+    "bbox_format": "xyxy",
+    "roi_size": [
+      562,
+      4000
+    ],
+    "note": "납품 이미지 자체가 ROI(562x4000)이며, bbox_xyxy/segmentation 좌표는 이 ROI 이미지의 픽셀 좌표입니다. 좌표 변환·오프셋 없이 그대로 사용하세요."
+  },
+  "cell": {
+    "id": "101",
+    "modality": "CT",
+    "axis": "y"
+  },
+  "model": {
+    "weight": "ct_samedist_CHAMPION_ep6.pt",
+    "run": "train_ct_tiled_v41_samedist",
+    "inference": "SAHI sliced (slice=1280, overlap=0.2)",
+    "confidence_threshold": 0.05
+  },
+  "verdict": "REJECT",
+  "num_detections": 1,
+  "detections": [
+    {
+      "id": 0,
+      "class": "porosity",
+      "confidence": 0.4137,
+      "bbox_xyxy": [
+        214.0,
+        1687.0,
+        251.0,
+        1734.0
+      ],
+      "bbox_xywh": [
+        214.0,
+        1687.0,
+        37.0,
+        47.0
+      ],
+      "bbox_norm_cxcywh": [
+        0.413701,
+        0.427625,
+        0.065836,
+        0.01175
+      ],
+      "area_px": 1739.0,
+      "segmentation": [
+        [
+          224.0,
+          1695.0,
+          243.0,
+          1701.0,
+          247.0,
+          1722.0,
+          231.0,
+          1729.0,
+          218.0,
+          1712.0
+        ]
+      ]
+    }
+  ]
+}
