@@ -1,5 +1,5 @@
 {
-  "_README": "스키마 계약 샘플. image/coordinate_space/cell 은 실제 manifest 값이며, detections 의 좌표·confidence 는 형식 설명용 예시입니다(실제 추론 결과 아님). 실제 산출물은 battery_infer_to_json.ipynb 실행으로 생성됩니다. model 블록은 2026-08-03 기준 CT 배포 운영점(0728 확정)이며, 실제 추론 시에는 사용된 가중치·설정으로 자동 채워집니다.",
+  "_README": "스키마 계약 샘플. image/coordinate_space/cell 은 실제 manifest·파일명 값이며, detections 의 좌표·confidence 와 volume 의 Y·slice_count 는 형식 설명용 예시입니다(실제 추론 결과 아님 — volume 값은 manifest에서 셀별로 계산됩니다). 실제 산출물은 battery_infer_to_json.ipynb 실행으로 생성됩니다. model 블록은 2026-08-03 기준 CT 배포 운영점(0728 확정: slice 1280 / overlap 0.2 @ conf 0.05)이며, 실제 추론 시에는 사용된 가중치·설정으로 자동 채워집니다. 챔피언 가중치 옆의 메타 사이드카(ct_samedist_CHAMPION_ep6.json)에는 slice 1024/0.4 에서 잰 구 운영점이 남아 있으니, 배포 값은 이 파일이 정본입니다.",
   "schema_version": "1.0",
   "image": {
     "file": "CT__CT_cell_pouch_101_y_033__ccfa129a.jpg",
@@ -20,7 +20,25 @@
   "cell": {
     "id": "101",
     "modality": "CT",
-    "axis": "y"
+    "axis": "y",
+    "slice_index": 33,
+    "slice_note": "3D 위치 = axis + slice_index + bbox(2D). CT 한 장은 단면이라 bbox는 2축뿐이고, 나머지 1축을 slice_index가 채움."
+  },
+  "volume": {
+    "dims_px": {
+      "X": 562,
+      "Y": 400,
+      "Z": 4000
+    },
+    "axis_mapping": {
+      "bbox_x": "X",
+      "bbox_y": "Z",
+      "slice_index": "Y"
+    },
+    "slice_axis": "Y",
+    "slice_count": 720,
+    "slice_scale_px": 0.5556,
+    "note": "3D 좌표 = bbox_x→X, bbox_y→Z, slice_index×0.5556→Y (픽셀/복셀 단위). 물리 단위(mm)는 스캔 메타데이터(voxel spacing)가 원본에 없어 제공 불가. slice_scale_px는 슬라이스가 ROI를 균등히 덮는다는 가정의 근사값."
   },
   "model": {
     "weight": "ct_samedist_CHAMPION_ep6.pt",
