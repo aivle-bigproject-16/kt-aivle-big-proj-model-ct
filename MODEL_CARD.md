@@ -76,8 +76,8 @@ detection:
 
 | 층 | 파라미터 | 값 | 출처 |
 | --- | --- | --- | --- |
-| ① 슬라이스 내부 NMS | `iou` | **미지정 → ultralytics 기본값** (8.x 기준 `0.7`) | `AutoDetectionModel.from_pretrained(...)` 에 안 넘김 |
-| ① 슬라이스 내부 NMS | `max_det` | **미지정 → ultralytics 기본값** (`300`) | 동일 |
+| ① 슬라이스 내부 NMS | `iou` | **미지정 → ultralytics 기본값 `0.7`** (8.4.115 실측) | `AutoDetectionModel.from_pretrained(...)` 에 안 넘김 |
+| ① 슬라이스 내부 NMS | `max_det` | **미지정 → ultralytics 기본값 `300`** (8.4.115 실측) | 동일 |
 | ② 슬라이스 간 병합 | `postprocess_match_threshold` | **0.5** | `get_sliced_prediction(postprocess_match_threshold=0.5)` |
 | ② 슬라이스 간 병합 | `postprocess_type` / `match_metric` / `class_agnostic` | **미지정 → sahi 기본값** (`GREEDYNMM` / `IOS` / `False`) | 동일 |
 | ③ 평가 전용 | `IOU_HIT` | **0.1** | 채점용 localization 판정 임계값. **추론 경로와 무관** |
@@ -158,10 +158,18 @@ pip freeze > requirements.lock.txt
 
 | | 버전 | 기록일 |
 | --- | --- | --- |
-| ultralytics | `TODO` | |
-| sahi | `TODO` | |
-| torch / CUDA | `TODO` | |
-| python | `TODO` | |
+| ultralytics | `8.4.115` | 2026-08-03 |
+| sahi | `0.12.5` | 2026-08-03 |
+| torch / CUDA | `2.11.0+cu128` / `12.8` | 2026-08-03 |
+| torchvision | `0.26.0+cu128` | 2026-08-03 |
+| numpy · pandas · pillow · shapely | `2.0.2` · `2.2.2` · `11.3.0` · `2.1.2` | 2026-08-03 |
+| python | `3.12.13` | 2026-08-03 |
+
+전체 목록은 `requirements.lock.txt`(Colab 런타임 freeze, 707줄)에 있습니다. 서빙 이미지에는 위 표의
+패키지만 고정하면 충분하고, `shapely` 는 학습 전용이라 뺄 수 있습니다.
+
+**기록 환경: Colab / Tesla T4.** 학습·서빙 GPU(A40 / EC2)와 다르므로, 골든 픽스처를 다른 GPU 에서
+검증하면 부동소수 차이로 confidence 가 미세하게 흔들릴 수 있습니다.
 
 ---
 
@@ -178,7 +186,9 @@ fixtures/
   golden_ct.sha256        # 입력 이미지 해시 (파일이 바뀌면 비교 자체가 무의미)
 ```
 
-기준 이미지 후보: `CT__CT_cell_pouch_101_y_033__ccfa129a.jpg` (셀 101, y축 33번 슬라이스, ROI 562x4000)
+**기준 이미지는 "임계에서 가장 멀리 떨어진 검출"이 있는 장으로 고릅니다.** conf 가 임계(0.05)에
+붙어 있는 케이스를 굳히면 라이브러리·GPU 가 조금만 달라져도 그 검출이 사라져 `verdict` 가 뒤집힙니다.
+§5 가 자동으로 최고 confidence 케이스를 고르고, 여유가 0.05 미만이면 경고합니다.
 
 ### 생성 · 검증
 

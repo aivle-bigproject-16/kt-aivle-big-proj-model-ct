@@ -1,5 +1,5 @@
 {
-  "_README": "스키마 계약 샘플. image/coordinate_space/cell 은 실제 manifest·파일명 값이며, detections 의 좌표·confidence 와 volume 의 Y·slice_count 는 형식 설명용 예시입니다(실제 추론 결과 아님 — volume 값은 manifest에서 셀별로 계산됩니다). 실제 산출물은 battery_infer_to_json.ipynb 실행으로 생성됩니다. model 블록은 2026-08-03 기준 CT 배포 운영점(0728 확정: slice 1280 / overlap 0.2 @ conf 0.05)이며, 실제 추론 시에는 사용된 가중치·설정으로 자동 채워집니다. 챔피언 가중치 옆의 메타 사이드카(ct_samedist_CHAMPION_ep6.json)에는 slice 1024/0.4 에서 잰 구 운영점이 남아 있으니, 배포 값은 이 파일이 정본입니다.",
+  "_README": "스키마 계약 샘플. image/coordinate_space/cell/volume 은 실제 manifest·파일명 값이며(volume 은 셀 101 실측: X562×Y1152×Z4000, y축 800슬라이스), detections 의 좌표·confidence 만 형식 설명용 예시입니다(실제 추론 결과 아님). 실제 산출물은 battery_infer_to_json.ipynb 실행으로 생성되고, 회귀 검증용 실측 표본은 fixtures/golden_ct.json 입니다. model 블록은 2026-08-03 기준 CT 배포 운영점(0728 확정: slice 1280 / overlap 0.2 @ conf 0.05)이며, 실제 추론 시에는 사용된 가중치·설정으로 자동 채워집니다. 챔피언 가중치 옆의 메타 사이드카(ct_samedist_CHAMPION_ep6.json)에는 slice 1024/0.4 에서 잰 구 운영점이 남아 있으니, 배포 값은 이 파일이 정본입니다.",
   "schema_version": "1.0",
   "image": {
     "file": "CT__CT_cell_pouch_101_y_033__ccfa129a.jpg",
@@ -27,7 +27,7 @@
   "volume": {
     "dims_px": {
       "X": 562,
-      "Y": 400,
+      "Y": 1152,
       "Z": 4000
     },
     "axis_mapping": {
@@ -36,9 +36,9 @@
       "slice_index": "Y"
     },
     "slice_axis": "Y",
-    "slice_count": 720,
-    "slice_scale_px": 0.5556,
-    "note": "3D 좌표 = bbox_x→X, bbox_y→Z, slice_index×0.5556→Y (픽셀/복셀 단위). 물리 단위(mm)는 스캔 메타데이터(voxel spacing)가 원본에 없어 제공 불가. slice_scale_px는 슬라이스가 ROI를 균등히 덮는다는 가정의 근사값."
+    "slice_count": 800,
+    "slice_scale_px": 1.44,
+    "note": "3D 좌표 = bbox_x→X, bbox_y→Z, slice_index×1.44→Y (픽셀/복셀 단위). 물리 단위(mm)는 스캔 메타데이터(voxel spacing)가 원본에 없어 제공 불가. slice_scale_px는 슬라이스가 ROI를 균등히 덮는다는 가정의 근사값."
   },
   "model": {
     "weight": "ct_samedist_CHAMPION_ep6.pt",
@@ -54,16 +54,16 @@
       "class": "porosity",
       "confidence": 0.4137,
       "bbox_xyxy": [
-        214.0,
-        1687.0,
-        251.0,
-        1734.0
+        214,
+        1687,
+        251,
+        1734
       ],
       "bbox_xywh": [
-        214.0,
-        1687.0,
-        37.0,
-        47.0
+        214,
+        1687,
+        37,
+        47
       ],
       "bbox_norm_cxcywh": [
         0.413701,
@@ -71,19 +71,19 @@
         0.065836,
         0.01175
       ],
-      "area_px": 1739.0,
+      "area_px": 1739,
       "segmentation": [
         [
-          224.0,
-          1695.0,
-          243.0,
-          1701.0,
-          247.0,
-          1722.0,
-          231.0,
-          1729.0,
-          218.0,
-          1712.0
+          224,
+          1695,
+          243,
+          1701,
+          247,
+          1722,
+          231,
+          1729,
+          218,
+          1712
         ]
       ]
     }
