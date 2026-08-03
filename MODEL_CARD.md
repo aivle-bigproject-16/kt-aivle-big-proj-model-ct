@@ -64,6 +64,8 @@ sahi:
   slice_width: 1280
   overlap_height_ratio: 0.2
   overlap_width_ratio: 0.2
+  postprocess_type: NMS              # 명시 필수 — 기본값은 conf 에 따라 바뀜
+  postprocess_match_metric: IOU
   postprocess_match_threshold: 0.5
 
 detection:
@@ -78,12 +80,20 @@ detection:
 | --- | --- | --- | --- |
 | ① 슬라이스 내부 NMS | `iou` | **미지정 → ultralytics 기본값 `0.7`** (8.4.115 실측) | `AutoDetectionModel.from_pretrained(...)` 에 안 넘김 |
 | ① 슬라이스 내부 NMS | `max_det` | **미지정 → ultralytics 기본값 `300`** (8.4.115 실측) | 동일 |
-| ② 슬라이스 간 병합 | `postprocess_match_threshold` | **0.5** | `get_sliced_prediction(postprocess_match_threshold=0.5)` |
-| ② 슬라이스 간 병합 | `postprocess_type` / `match_metric` / `class_agnostic` | **미지정 → sahi 기본값** (`GREEDYNMM` / `IOS` / `False`) | 동일 |
+| ② 슬라이스 간 병합 | `postprocess_match_threshold` | **0.5** | `get_sliced_prediction(...)` |
+| ② 슬라이스 간 병합 | `postprocess_type` / `match_metric` | **`NMS` / `IOU`** (명시 지정) | 아래 주의 참고 |
+| ② 슬라이스 간 병합 | `postprocess_class_agnostic` | **미지정 → sahi 기본값** (`False`). 단일 클래스라 영향 없음 | `get_sliced_prediction(...)` |
 | ③ 평가 전용 | `IOU_HIT` | **0.1** | 채점용 localization 판정 임계값. **추론 경로와 무관** |
 
-> ①과 ②의 "미지정" 항목은 **설치된 라이브러리 버전이 바뀌면 조용히 값이 바뀝니다.**
-> 서빙에서는 기본값에 기대지 말고 명시적으로 넘겨서 고정하세요. ③을 NMS 값으로 오해하지 마세요.
+> ⚠️ **sahi 는 conf 가 낮으면 병합 방식을 조용히 바꿉니다.** 0.12.5 에서 배포 운영점 conf 0.05 로
+> 돌리면 기본값 `GREEDYNMM`/`IOS` 대신 `NMS`/`IOU` 로 자동 전환되고 경고만 찍습니다
+> (`Switching postprocess type/metric to NMS/IOU since model confidence threshold is low`).
+> 그래서 코드에 `NMS`/`IOU` 를 **명시**했습니다 — 값은 그대로지만 conf 를 올려도 병합 방식이 안 바뀝니다.
+> **conf 0.15(report_f1max)로 재평가하면 자동 전환이 안 걸려 배포와 다른 방식으로 병합됩니다.**
+> 평가 노트북에서 conf 를 올려 잰 수치를 배포 수치와 직접 비교할 때 이 점을 감안하세요.
+>
+> ①의 "미지정" 항목은 **설치된 라이브러리 버전이 바뀌면 조용히 값이 바뀝니다.** 서빙에서는
+> 기본값에 기대지 말고 명시적으로 넘겨 고정하세요. ③을 NMS 값으로 오해하지 마세요.
 
 ### 운영점 (conf)
 
@@ -214,8 +224,19 @@ fixtures/
 
 `verdict` 나 검출 개수가 달라지면 배포를 멈추세요. bbox 가 1px 넘게 움직이면 대개 라이브러리 버전이 바뀐 것입니다.
 
-> **현재 상태: 픽스처 미생성.** 위 스키마 샘플의 detections 는 형식 설명용 예시라 골든값으로 쓸 수 없습니다.
-> 챔피언 가중치가 있는 환경에서 한 번 돌려 실제 값으로 채워야 합니다.
+### 현재 픽스처 (2026-08-03)
+
+| | |
+| --- | --- |
+| 이미지 | `CT__CT_cell_pouch_101_z_119__b82e0912.jpg` (셀 101, z축 119번, ROI 562x4000) |
+| sha256 | `2f749661c58cee23a6a8cecf5ea195647e86c33411e34649e37035dbd6c2d97f` |
+| 기대 출력 | `verdict REJECT` · 검출 1건 · `porosity` · conf **0.2705** · bbox `[269, 620, 274, 912]` |
+| 임계 여유 | **+0.2205** (conf 0.05 기준) |
+| 생성 환경 | Colab / Tesla T4 · ultralytics 8.4.115 · sahi 0.12.5 · torch 2.11.0+cu128 |
+
+임계에서 0.22 떨어져 있어 라이브러리·GPU 가 조금 달라져도 검출이 사라지지 않습니다.
+`bbox` 좌표는 sahi 가 정수로 내므로 서브픽셀 흔들림이 없고, 실질 변동은 `confidence` 와
+`segmentation` 폴리곤뿐입니다.
 
 ---
 

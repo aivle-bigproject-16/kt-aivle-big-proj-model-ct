@@ -1,0 +1,5 @@
+# 골든 픽스처 이미지는 절대 변환 금지 — 1바이트만 바뀌어도 sha256 검증이 깨짐
+*.jpg binary
+*.png binary
+*.pt binary
+fixtures/golden_ct.sha256 -text
