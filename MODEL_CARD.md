@@ -180,10 +180,17 @@ fixtures/
 
 기준 이미지 후보: `CT__CT_cell_pouch_101_y_033__ccfa129a.jpg` (셀 101, y축 33번 슬라이스, ROI 562x4000)
 
-### 생성 방법
+### 생성 · 검증
 
-`battery_infer_to_json.ipynb` 를 §5의 고정 버전 · §2의 추론 파라미터로 실행하고,
-`json/CT__CT_cell_pouch_101_y_033__ccfa129a.json` 을 `fixtures/golden_ct.json` 으로 커밋합니다.
+`battery_infer_to_json.ipynb` **§5** 를 실행하면 `fixtures/` 4종(`golden_ct.jpg` · `golden_ct.json` ·
+`golden_ct.sha256` · `env.json`)과 `requirements.lock.txt` 가 생성되고, 위 §5 표에 붙여넣을 버전 줄이
+출력됩니다. 이 파일들을 레포에 커밋하세요.
+
+픽스처는 **§2 가 실제로 낸 출력을 그대로 굳힙니다.** 픽스처용으로 따로 추론하면 배포 경로와 다른
+코드를 검증하게 되므로 일부러 재추론하지 않습니다.
+
+**§6** 이 회귀 검증입니다 — 같은 이미지에 다시 추론해 아래 허용오차로 비교하고, 어긋나면 `assert` 로
+멈춥니다. 라이브러리 업그레이드·리팩터링 후 **§1 → §2 → §6** 순으로 돌리면 됩니다.
 
 ### 통과 기준
 
