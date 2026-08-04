@@ -1,62 +1,121 @@
-# Model Card — CT porosity 검출 (배포용)
+# Model Card — YOLO CT (porosity 검출)
 
 CT 단면 이미지에서 porosity(기공)를 찾아 셀을 `PASS` / `REJECT` 로 판정합니다.
-서빙(`ai-infer`)이 이 문서만 보고 학습 결과를 재현할 수 있도록 쓴 계약 문서입니다.
-출력 JSON 형식은 [`ct_output_schema.sample.json`](ct_output_schema.sample.json) 이 정본입니다.
+`ai-infer` 가 이 문서만 보고 학습 결과를 재현할 수 있도록 쓴 계약 문서입니다.
+
+- 기계가 읽을 형태 → [`ct.model_card.json`](ct.model_card.json)
+- 출력 JSON 형식 → [`ct_output_schema.sample.json`](ct_output_schema.sample.json)
 
 | | |
 | --- | --- |
-| 최종 갱신 | 2026-08-03 |
+| 최종 갱신 | 2026-08-04 |
 | 모달 | CT (RGB/외관은 `model-rgb` 레포) |
 | 판정 값 | `PASS` · `REJECT` (`FAIL` 은 촬영 품질 분류기 소관) |
 
 ---
 
-## 1. 모델 신원
+## 0. 요청 항목 대조표
 
-| 항목 | 값 |
-| --- | --- |
-| 가중치 | `ct_samedist_CHAMPION_ep6.pt` (S3 `models/` 프리픽스) |
-| 아키텍처 | `yolo11m-seg` (instance segmentation, 사전학습 `yolo11m-seg.pt` 에서 파인튜닝) |
-| 학습 run | `train_ct_tiled_v41_samedist` |
-| 채택 에폭 | **6** (18에폭 중. `best.pt` 아님 — §4 conf 스윕 F1 으로 선택) |
-| 메타 사이드카 | 가중치 옆 `ct_samedist_CHAMPION_ep6.json` (sha256·운영점 포함) |
-
-> ⚠️ 사이드카의 `inference` 와 `operating_points` 는 **구 프로토콜(slice 1024 / overlap 0.4)** 에서 잰 값입니다.
-> 배포 값은 이 문서와 스키마 샘플이 정본이고, 사이드카에는 `superseded_by` 블록으로 표시해 두었습니다.
-
-### 클래스 매핑
-
-| class_id | name | 의미 |
+| 요청 (§) | 상태 | 값 / 위치 |
 | --- | --- | --- |
-| `0` | `porosity` | 기공 |
-
-**단일 클래스입니다.** `data.yaml` 의 `names: ['porosity']` 가 유일한 출처이고, 출력 JSON의 `detections[].class` 에는
-정수 id 가 아니라 이 문자열이 들어갑니다. 새 결함 유형을 임의로 만들지 않습니다(계약서 Core §6.5).
+| 1.1 식별 | 부분 | §1 — `weight_sha256` · `trained_at` 미기입 |
+| 1.2 라이브러리 버전 | ✅ | §2 + `requirements.lock.txt` |
+| 1.3 입력 전처리 | ✅ | §3 — **실효 `imgsz` 는 1280 이 아니라 640 입니다** |
+| 1.4 추론 파라미터 | ✅ | §4 |
+| 1.5 출력 매핑 | ✅ | §5 — `porosity` → `MICRO_DEFECT` |
+| 2.2 SAHI 후처리 | ✅ | §4 — `NMS` / `IOU` / `0.5` 명시 |
+| 2.3 사이드카가 낡음 | ✅ | §1 — 사이드카에 `superseded_by` 표시 완료 |
+| 2.3 conf ↔ weight 짝 | ✅ | §6 — `0.05` 는 `samedist ep6` 전용 |
+| 5 골든 픽스처 | 부분 | §7 — **1장**. 요청은 20~30장 |
+| 6 model_card.json | ✅ | `ct.model_card.json` |
+| 7 confidence 산식 | 답변 | §10 |
 
 ---
 
-## 2. 추론 파이프라인
+## 1. 식별
 
-원본 CT 이미지는 세로로 매우 길고(최대 4000px) 결함은 수십 px 이라, 통짜로 리사이즈하면 신호가 사라집니다.
-그래서 **폭은 네이티브로 두고 세로 스트립 타일로 학습**했고, 추론도 같은 크기로 잘라 넣습니다(SAHI).
-**슬라이스 크기는 학습 타일 크기와 반드시 같아야 합니다** — 이게 어긋난 게 0728 이전 성능 저하의 원인이었습니다.
+| 항목 | 값 |
+| --- | --- |
+| `weight_file` | `ct_samedist_CHAMPION_ep6.pt` |
+| `weight_sha256` | **미기입** — 가중치 옆 사이드카 `ct_samedist_CHAMPION_ep6.json` 에 있습니다 |
+| `architecture` | `yolo11m-seg` (instance segmentation, `yolo11m-seg.pt` 파인튜닝) |
+| `train_run` | `train_ct_tiled_v41_samedist` |
+| 채택 에폭 | **6** (18에폭 중. `best.pt` 아님 — §6 conf 스윕 F1 으로 선택) |
+| `source_commit` | `dbfa3c54f40724ef612e5f57584ea506e582cfc8` (이 레포) |
+| `trained_at` | **미기입** |
 
-```
-원본 ROI 이미지 (예: 562 x 4000)
-  └ SAHI sliced inference   slice 1280 x 1280, overlap 0.2
-      └ YOLOv11m-seg (conf 0.05)
-          └ 슬라이스 결과 병합 (GREEDYNMM, match_threshold 0.5)
-              └ detections[] + verdict(REJECT if len>0 else PASS)
-```
+> ⚠️ **가중치 옆 사이드카를 읽지 마세요.** `ct_samedist_CHAMPION_ep6.json` 의 `inference` ·
+> `operating_points` 는 **구 프로토콜(slice 1024 / overlap 0.4)** 값입니다. 그대로 쓰면 계약이 요구하는
+> slice 1280 이 아니라 1024 로 돌게 됩니다. 사이드카에는 `superseded_by` 블록을 넣어 두었고,
+> **정본은 이 문서와 `ct.model_card.json`** 입니다.
 
-### 추론 파라미터 (그대로 복사해 쓸 것)
+---
+
+## 2. 라이브러리 버전
+
+| 패키지 | 버전 | 서빙 필요 |
+| --- | --- | --- |
+| `python` | `3.12.13` | ✅ |
+| `torch` / CUDA | `2.11.0+cu128` / `12.8` | ✅ |
+| `torchvision` | `0.26.0+cu128` | ✅ |
+| `ultralytics` | `8.4.115` | ✅ |
+| `sahi` | `0.12.5` | ✅ |
+| `numpy` · `pillow` | `2.0.2` · `11.3.0` | ✅ |
+| `shapely` · `pandas` · `pyyaml` | `2.1.2` · `2.2.2` | ❌ 학습 전용 |
+
+전체 목록은 [`requirements.lock.txt`](requirements.lock.txt) (Colab 런타임 freeze, 707줄).
+**기록 환경: Colab / Tesla T4.** 서빙 GPU 가 다르면 부동소수 차이로 confidence 가 미세하게 흔들립니다.
+
+버전을 바꾸면 §4 의 "미지정 → 기본값" 항목이 조용히 달라집니다. 올린 뒤에는 §7 회귀 테스트를 반드시 도세요.
+
+---
+
+## 3. 입력 전처리
+
+| 항목 | 값 |
+| --- | --- |
+| `input_type` | **파일 경로** (sahi 가 직접 읽습니다) |
+| `color_space` | `RGB` |
+| `imgsz` | **640** ← 아래 주의 |
+| `letterbox` | `true` (ultralytics 기본) |
+| `normalize` | ultralytics 기본 (0-1 스케일, mean/std 정규화 없음) |
+| ROI | 납품 이미지 자체가 ROI. 별도 crop 불필요 |
+| ROI 크기 고정? | **아니오** |
+
+> ### ⚠️ 실효 `imgsz` 는 1280 이 아니라 640 입니다
+>
+> `1280` 은 **학습 타일 크기이자 SAHI 슬라이스 크기**이고, 모델에 실제로 들어가는 크기가 아닙니다.
+> sahi 0.12.5 는 `AutoDetectionModel.from_pretrained(image_size=...)` 를 **넘겼을 때만**
+> ultralytics 에 `imgsz` 를 전달합니다. 우리 코드는 넘기지 않으므로 ultralytics 기본값 `640` 이 적용되고,
+> **1280 슬라이스가 640 으로 리사이즈된 뒤 추론됩니다.**
+>
+> §6 의 운영점 수치는 전부 이 경로에서 잰 값이라 **성능 수치 자체는 유효합니다.**
+> 다만 `image_size=1280` 을 넘기는 순간 결과가 통째로 달라져 운영점도 골든 픽스처도 무효가 됩니다.
+> **"카드에 1280 이라 쓰여 있으니 맞춰야지" 하고 켜지 마세요.**
+> (켜는 게 더 나을 가능성은 있습니다 — §9 참고. 다만 그건 재측정이 필요한 실험입니다.)
+
+> ### ⚠️ ROI 크기는 고정이 아닙니다
+>
+> CT 는 축 단면이라 축마다 이미지가 담는 축 조합이 바뀝니다. 셀 101 기준 y축 단면은 `562 x 4000`,
+> z축 단면은 `562 x 1152` 입니다. 셀마다도 다릅니다(폭 중앙값 411). **크기를 하드코딩하지 마세요** —
+> 좌표계는 매 JSON 의 `coordinate_space.roi_size` 에 실려 나갑니다.
+
+> ### 채널 순서
+>
+> 우리 경로는 sahi 에 **파일 경로**를 넘기고, sahi 가 RGB 로 읽어 내부에서 BGR 로 뒤집어 ultralytics 에
+> 넘깁니다. numpy 배열로 직접 넘기려면 **RGB 여야 합니다** — `cv2.imread` 결과(BGR)를 그대로 넣으면
+> 채널이 뒤집혀 에러 없이 성능만 떨어집니다. 배열로 넘길 거면 §7 골든 픽스처로 먼저 확인하세요.
+
+---
+
+## 4. 추론 파라미터
 
 ```yaml
 model:
   weight: ct_samedist_CHAMPION_ep6.pt
   task: segment
   classes: { 0: porosity }
+  device: cuda:0
 
 sahi:
   enabled: true                     # CT 는 ON. RGB 는 OFF (계약서)
@@ -64,38 +123,85 @@ sahi:
   slice_width: 1280
   overlap_height_ratio: 0.2
   overlap_width_ratio: 0.2
-  postprocess_type: NMS              # 명시 필수 — 기본값은 conf 에 따라 바뀜
+  postprocess_type: NMS             # 명시 필수 — 기본값은 conf 에 따라 바뀜
   postprocess_match_metric: IOU
   postprocess_match_threshold: 0.5
 
 detection:
-  confidence_threshold: 0.05        # 배포 운영점
+  confidence_threshold: 0.05        # 배포 운영점 (samedist ep6 전용)
 ```
 
-### IoU · NMS — 실제로 두 층입니다
+### 코드가 지정하는 값 / 라이브러리 기본값
 
-혼동이 잦아 분리해 적습니다. **코드가 명시적으로 지정하는 값은 SAHI 병합 임계값 하나뿐입니다.**
+**코드가 명시적으로 지정하는 건 위 yaml 뿐입니다.** 나머지는 전부 라이브러리 기본값이고,
+**버전이 바뀌면 조용히 값이 바뀝니다.** 서빙에서는 기본값에 기대지 말고 명시적으로 넘겨 고정하세요.
 
 | 층 | 파라미터 | 값 | 출처 |
 | --- | --- | --- | --- |
-| ① 슬라이스 내부 NMS | `iou` | **미지정 → ultralytics 기본값 `0.7`** (8.4.115 실측) | `AutoDetectionModel.from_pretrained(...)` 에 안 넘김 |
-| ① 슬라이스 내부 NMS | `max_det` | **미지정 → ultralytics 기본값 `300`** (8.4.115 실측) | 동일 |
-| ② 슬라이스 간 병합 | `postprocess_match_threshold` | **0.5** | `get_sliced_prediction(...)` |
-| ② 슬라이스 간 병합 | `postprocess_type` / `match_metric` | **`NMS` / `IOU`** (명시 지정) | 아래 주의 참고 |
-| ② 슬라이스 간 병합 | `postprocess_class_agnostic` | **미지정 → sahi 기본값** (`False`). 단일 클래스라 영향 없음 | `get_sliced_prediction(...)` |
-| ③ 평가 전용 | `IOU_HIT` | **0.1** | 채점용 localization 판정 임계값. **추론 경로와 무관** |
+| ① 슬라이스 내부 NMS | `iou` | `0.7` | 미지정 → ultralytics 8.4.115 기본값 (`get_cfg` 실측) |
+| ① 슬라이스 내부 NMS | `max_det` | `300` | 미지정 → ultralytics 8.4.115 기본값 (`get_cfg` 실측) |
+| ① 슬라이스 내부 | `agnostic_nms` | `false` | 미지정 → ultralytics 기본값. 단일 클래스라 영향 없음 |
+| ① 슬라이스 내부 | `half` | `false` (fp32) | 미지정 → ultralytics 기본값 **추정**. §9 |
+| ① 슬라이스 내부 | `imgsz` | `640` | 미지정 → ultralytics 기본값. §3 |
+| ② 슬라이스 간 병합 | `postprocess_type` / `match_metric` | `NMS` / `IOU` | **명시 지정** |
+| ② 슬라이스 간 병합 | `postprocess_match_threshold` | `0.5` | **명시 지정** |
+| ② 슬라이스 간 병합 | `postprocess_class_agnostic` | `false` | 미지정 → sahi 기본값. 단일 클래스라 영향 없음 |
+| ② SAHI | `perform_standard_pred` | `true` | 미지정 → sahi 기본값. 아래 주의 |
+| ② SAHI | `batch_size` | `1` | 미지정 → sahi 기본값 |
+| ③ 평가 전용 | `IOU_HIT` | `0.1` | 채점용 localization 판정. **추론 경로와 무관** |
 
-> ⚠️ **sahi 는 conf 가 낮으면 병합 방식을 조용히 바꿉니다.** 0.12.5 에서 배포 운영점 conf 0.05 로
-> 돌리면 기본값 `GREEDYNMM`/`IOS` 대신 `NMS`/`IOU` 로 자동 전환되고 경고만 찍습니다
-> (`Switching postprocess type/metric to NMS/IOU since model confidence threshold is low`).
-> 그래서 코드에 `NMS`/`IOU` 를 **명시**했습니다 — 값은 그대로지만 conf 를 올려도 병합 방식이 안 바뀝니다.
-> **conf 0.15(report_f1max)로 재평가하면 자동 전환이 안 걸려 배포와 다른 방식으로 병합됩니다.**
-> 평가 노트북에서 conf 를 올려 잰 수치를 배포 수치와 직접 비교할 때 이 점을 감안하세요.
+③을 NMS 값으로 오해하지 마세요. 평가 스크립트에만 있는 값입니다.
+
+> ### ⚠️ sahi 는 conf 가 낮으면 병합 방식을 조용히 바꿉니다
 >
-> ①의 "미지정" 항목은 **설치된 라이브러리 버전이 바뀌면 조용히 값이 바뀝니다.** 서빙에서는
-> 기본값에 기대지 말고 명시적으로 넘겨 고정하세요. ③을 NMS 값으로 오해하지 마세요.
+> 0.12.5 에서 배포 운영점 `conf 0.05` 로 돌리면 기본값 `GREEDYNMM`/`IOS` 대신 `NMS`/`IOU` 로 자동
+> 전환되고 경고만 찍습니다 (`Switching postprocess type/metric to NMS/IOU since model confidence
+> threshold is low`). 그래서 코드에 `NMS`/`IOU` 를 **명시**했습니다 — 값은 그대로지만 conf 를 올려도
+> 병합 방식이 안 바뀝니다.
+>
+> 명시했다고 안전한 게 아닙니다. `force_postprocess_type=True` 를 주지 않으면 **명시값도 자동전환
+> 대상**입니다. 지금은 명시값과 전환 결과가 같아서 무해할 뿐이고, `GREEDYNMM` 을 쓰려면 그 플래그가 필요합니다.
+>
+> **conf 를 0.05 보다 올려 재평가하면 자동 전환이 안 걸려 배포와 다른 방식으로 병합됩니다.**
+> 평가에서 conf 를 올려 잰 수치를 배포 수치와 직접 비교할 때 이 점을 감안하세요.
 
-### 운영점 (conf)
+> ### `perform_standard_pred` 가 켜져 있습니다
+>
+> sahi 기본값이 `true` 라, 슬라이스 추론 외에 **원본 전체를 640 으로 줄여 한 번 더 추론하고 병합**합니다.
+> 코드가 끄지 않았으므로 배포도 이 상태이고, §6 수치도 이 상태에서 잰 값입니다. 끄면 결과가 달라집니다.
+
+---
+
+## 5. 출력 매핑
+
+| 항목 | 값 |
+| --- | --- |
+| `model_classes` | `{"0": "porosity"}` — **단일 클래스** |
+| `class_map` | `{"porosity": "MICRO_DEFECT"}` |
+| `bbox_format` | `xyxy` |
+| 계약용 `{x,y,width,height}` | 출력 JSON 의 **`bbox_xywh` 필드가 그대로 대응**. 변환 불필요 |
+| `coordinate_reference` | `roi_image` |
+| origin / unit | `top-left` / `pixel` |
+| `verdict` | `num_detections > 0` → `REJECT`, 아니면 `PASS` |
+
+`detections[].class` 에는 정수 id 가 아니라 문자열 `porosity` 가 들어갑니다.
+`data.yaml` 의 `names: ['porosity']` 가 유일한 출처이고, 새 결함 유형을 임의로 만들지 않습니다(계약서 Core §6.5).
+CT 가 낼 수 있는 계약 enum 은 `MICRO_DEFECT` 하나뿐입니다.
+
+### 좌표계
+
+납품 이미지 자체가 ROI 입니다. `bbox_xyxy` 는 **그 이미지의 픽셀 좌표**이고 origin 은 좌상단입니다.
+**좌표 변환·오프셋이 필요 없습니다.**
+
+CT 한 장은 단면이라 bbox 가 2축만 담습니다. 나머지 1축은 `cell.axis` + `cell.slice_index` +
+`volume.axis_mapping` 이 채웁니다. 자세한 건 스키마 샘플의 `coordinate_space` · `volume` 블록과
+`battery_infer_to_json.ipynb` §4(자체검증 게이트)를 보세요.
+
+물리 단위(mm)는 제공하지 않습니다 — 원본에 voxel spacing 메타데이터가 없어 픽셀/복셀 단위까지만 나갑니다.
+
+---
+
+## 6. 운영점 (conf)
 
 | conf | 성격 | 실측 |
 | --- | --- | --- |
@@ -104,22 +210,71 @@ detection:
 | 0.10 | F1 최대 | F1 0.921 (모델 비교용, 배포용 아님) |
 
 불량 게이트라 **recall 우선**입니다. 놓친 불량이 오탐보다 훨씬 비쌉니다 — 오탐은 사람 재검으로 회수되지만
-미검출은 그대로 나갑니다. 위 숫자는 **slice 1280 / overlap 0.2 + epoch 6 조합 전용**이며, 다른 가중치나
-다른 슬라이스 설정에서는 성립하지 않습니다.
+미검출은 그대로 나갑니다.
+
+> **`conf` 는 가중치와 짝입니다.** `0.05` 는 `ct_samedist_CHAMPION_ep6.pt` 전용입니다. 다른 가중치면
+> `0.25` 이고, 위 수치는 성립하지 않습니다. `ai-infer` 는 기동 시
+> `model_card.inference.conf_is_paired_with_weight` 와 실제 로드한 가중치 파일명을 대조하세요.
+
+측정 조건: **samedist ep6 + slice 1280 / overlap 0.2 + imgsz 640 + `perform_standard_pred` on.**
+넷 중 하나만 바꿔도 위 실측값은 무효입니다.
+
+평가 split 은 **동분포(known-type)** 입니다 — 47셀 전부 train·val 양쪽에 있고 이미지 단위 stratified.
+새 셀 타입에서는 눈에 띄게 떨어집니다(§9).
 
 ---
 
-## 3. 좌표계
+## 7. 골든 픽스처 (회귀 테스트)
 
-납품 이미지 자체가 이미 ROI 입니다. `bbox_xyxy` 는 **그 이미지의 픽셀 좌표**이고 origin 은 좌상단입니다.
-**좌표 변환·오프셋이 필요 없습니다.** 자세한 건 스키마 샘플의 `coordinate_space` 블록과
-`battery_infer_to_json.ipynb` §4(자체검증 게이트)를 보세요.
+배포·리팩터링·라이브러리 업그레이드 후 **같은 입력에서 같은 출력이 나오는지** 확인하는 고정 표본입니다.
+전처리가 어긋나도 서버는 200 을 반환하고 성능만 조용히 나빠지므로, 이게 유일한 자동 방어선입니다.
 
-CT 한 장은 단면이라 bbox 가 2축만 담습니다. 나머지 1축은 `cell.slice_index` 와 `volume.axis_mapping` 이 채웁니다.
+```
+fixtures/
+  golden_ct.jpg      # 입력 이미지 (결함 있는 것)
+  golden_ct.json     # 위 설정으로 낸 기대 출력
+  golden_ct.sha256   # 입력 해시 (파일이 바뀌면 비교 자체가 무의미)
+  env.json           # 생성 환경 + ultralytics 실측 기본값
+```
+
+### 현재 픽스처 (2026-08-03)
+
+| | |
+| --- | --- |
+| 장수 | **1장** (요청은 20~30장 — §11) |
+| 이미지 | `CT__CT_cell_pouch_101_z_119__b82e0912.jpg` (셀 101, z축 119번, **562 x 1152**) |
+| sha256 | `2f749661c58cee23a6a8cecf5ea195647e86c33411e34649e37035dbd6c2d97f` |
+| 기대 출력 | `verdict REJECT` · 검출 1건 · `porosity` · conf **0.2705** · bbox `[269, 620, 274, 912]` |
+| 임계 여유 | **+0.2205** (conf 0.05 기준) |
+| 생성 환경 | Colab / Tesla T4 · ultralytics 8.4.115 · sahi 0.12.5 · torch 2.11.0+cu128 |
+| 검증 | **§6 통과 확인 (2026-08-03)** — 회귀 테스트가 실제로 도는 것까지 확인됨 |
+
+기준 이미지는 **"임계에서 가장 멀리 떨어진 검출"이 있는 장**으로 고릅니다. conf 가 임계(0.05)에
+붙어 있는 케이스를 굳히면 라이브러리·GPU 가 조금만 달라져도 그 검출이 사라져 `verdict` 가 뒤집힙니다.
+지금 픽스처는 임계에서 0.22 떨어져 있어 안전합니다.
+
+### 통과 기준
+
+| 항목 | 허용 오차 |
+| --- | --- |
+| `verdict` · `num_detections` | **완전 일치** |
+| `detections[].class` | **완전 일치** |
+| `bbox_xyxy` | ±1.0 px |
+| `confidence` | ±0.01 |
+| `segmentation` | 폴리곤 점 개수가 달라질 수 있어 **면적 ±5%** 로만 비교 |
+
+`verdict` 나 검출 개수가 달라지면 배포를 멈추세요. bbox 가 1px 넘게 움직이면 대개 라이브러리 버전이 바뀐 것입니다.
+
+### 생성 · 검증
+
+`battery_infer_to_json.ipynb` **§5** 가 생성, **§6** 이 회귀 검증입니다.
+픽스처는 **§2 가 실제로 낸 출력을 그대로 굳힙니다** — 픽스처용으로 따로 추론하면 배포 경로와 다른
+코드를 검증하게 되므로 일부러 재추론하지 않습니다.
+라이브러리 업그레이드·리팩터링 후에는 **§1 → §2 → §6** 순으로 돌리면 됩니다.
 
 ---
 
-## 4. 학습 재현
+## 8. 학습 재현
 
 | 항목 | 값 |
 | --- | --- |
@@ -129,137 +284,82 @@ CT 한 장은 단면이라 bbox 가 2축만 담습니다. 나머지 1축은 `cel
 | 타일 | `TILE = ceil(max(1280, Wmax)/32)*32` → 실측 1280. 가로 1칸 · 세로 스트립, 폭 네이티브 보존 |
 | 타일 라벨 | shapely 교집합 클립 — 스트립에 걸친 결함을 조각 라벨로 분배(중심 배정하면 걸친 스트립이 배경 오라벨이 됨) |
 | 배경 타일 | `BG_KEEP 0.08`, `N_BG_TILES 1` |
-| imgsz | `= TILE` (다운스케일 없음) |
+| imgsz | **`= TILE` (1280). 학습은 다운스케일 없음** — 추론과 다릅니다(§3) |
 | batch | 12 (OOM 시 8) |
 | optimizer | AdamW, `lr0 0.0005`, `cos_lr`, `amp=True` |
 | epochs / patience | 18 / 15 (채택은 6) |
 | 증강 | `hsv_h 0.0, hsv_s 0.0, hsv_v 0.1, degrees 10, flipud 0.5, translate 0.2, scale 0.1, copy_paste 0.0` |
 | seg 옵션 | `mask_ratio 2`, `overlap_mask False` |
-| 학습 중 val | **`val=False`** — CT 는 mask mAP50 이 함정이라 학습 중 val 을 쓰지 않고, §4 conf 스윕 F1 으로 판정 |
+| 학습 중 val | **`val=False`** — CT 는 mask mAP50 이 함정이라 학습 중 val 을 쓰지 않고, conf 스윕 F1 으로 판정 |
 | 학습 환경 | RunPod A40 / Colab |
 
 노트북: `battery_ct_tiled_v41_samedist.ipynb` (§1 config → §2 타일 빌드 → §3 학습 → §4 평가 → §6 챔피언 백업)
 
 ---
 
-## 5. 의존성 · 환경 — ⚠️ 현재 고정 안 되어 있음
+## 9. 한계 · 알아야 할 것
 
-노트북이 `!pip -q install ultralytics sahi shapely pandas pyyaml` 로 **버전 없이** 설치합니다.
-즉 **오늘 돌린 결과와 다음 달 돌린 결과가 같다는 보장이 없습니다.** 서빙에 싣기 전에 반드시 고정하세요.
-
-| 패키지 | 용도 | 현재 |
-| --- | --- | --- |
-| `ultralytics` | YOLOv11-seg 학습·추론, 슬라이스 내부 NMS | 미고정 |
-| `sahi` | 슬라이스 추론·병합 | 미고정 |
-| `torch` (+`torchvision`) | 런타임. CUDA 빌드가 GPU 와 맞아야 함 | 미고정 (Colab/RunPod 제공본) |
-| `shapely` | 타일 라벨 클리핑 (**학습 전용**, 추론 불필요) | 미고정 |
-| `pandas` · `pyyaml` | manifest·data.yaml | 미고정 |
-| `pillow` | 이미지 I/O, 오버레이 | torch 의존으로 딸려옴 |
-
-고정 절차 — 챔피언을 만든 그 런타임에서:
-
-```bash
-python -c "import ultralytics, sahi, torch; print(ultralytics.__version__, sahi.__version__, torch.__version__, torch.version.cuda)"
-pip freeze > requirements.lock.txt
-```
-
-출력값을 아래 표에 적고 `requirements.lock.txt` 를 이 레포에 커밋하세요. **추측해서 채우지 마세요** —
-버전이 틀리면 NMS 기본값이 달라져 같은 이미지에서 다른 박스가 나옵니다.
-
-| | 버전 | 기록일 |
-| --- | --- | --- |
-| ultralytics | `8.4.115` | 2026-08-03 |
-| sahi | `0.12.5` | 2026-08-03 |
-| torch / CUDA | `2.11.0+cu128` / `12.8` | 2026-08-03 |
-| torchvision | `0.26.0+cu128` | 2026-08-03 |
-| numpy · pandas · pillow · shapely | `2.0.2` · `2.2.2` · `11.3.0` · `2.1.2` | 2026-08-03 |
-| python | `3.12.13` | 2026-08-03 |
-
-전체 목록은 `requirements.lock.txt`(Colab 런타임 freeze, 707줄)에 있습니다. 서빙 이미지에는 위 표의
-패키지만 고정하면 충분하고, `shapely` 는 학습 전용이라 뺄 수 있습니다.
-
-**기록 환경: Colab / Tesla T4.** 학습·서빙 GPU(A40 / EC2)와 다르므로, 골든 픽스처를 다른 GPU 에서
-검증하면 부동소수 차이로 confidence 가 미세하게 흔들릴 수 있습니다.
-
----
-
-## 6. 골든 픽스처 (회귀 테스트)
-
-배포·리팩터링·라이브러리 업그레이드 후 **같은 입력에서 같은 출력이 나오는지** 확인하는 고정 표본입니다.
-
-### 구성
-
-```
-fixtures/
-  golden_ct.jpg           # 입력 이미지 1장 (결함 있는 것)
-  golden_ct.json          # 위 추론 설정으로 낸 기대 출력
-  golden_ct.sha256        # 입력 이미지 해시 (파일이 바뀌면 비교 자체가 무의미)
-```
-
-**기준 이미지는 "임계에서 가장 멀리 떨어진 검출"이 있는 장으로 고릅니다.** conf 가 임계(0.05)에
-붙어 있는 케이스를 굳히면 라이브러리·GPU 가 조금만 달라져도 그 검출이 사라져 `verdict` 가 뒤집힙니다.
-§5 가 자동으로 최고 confidence 케이스를 고르고, 여유가 0.05 미만이면 경고합니다.
-
-### 생성 · 검증
-
-`battery_infer_to_json.ipynb` **§5** 를 실행하면 `fixtures/` 4종(`golden_ct.jpg` · `golden_ct.json` ·
-`golden_ct.sha256` · `env.json`)과 `requirements.lock.txt` 가 생성되고, 위 §5 표에 붙여넣을 버전 줄이
-출력됩니다. 이 파일들을 레포에 커밋하세요.
-
-픽스처는 **§2 가 실제로 낸 출력을 그대로 굳힙니다.** 픽스처용으로 따로 추론하면 배포 경로와 다른
-코드를 검증하게 되므로 일부러 재추론하지 않습니다.
-
-**§6** 이 회귀 검증입니다 — 같은 이미지에 다시 추론해 아래 허용오차로 비교하고, 어긋나면 `assert` 로
-멈춥니다. 라이브러리 업그레이드·리팩터링 후 **§1 → §2 → §6** 순으로 돌리면 됩니다.
-
-### 통과 기준
-
-| 항목 | 허용 오차 |
-| --- | --- |
-| `num_detections` · `verdict` | **완전 일치** |
-| `detections[].class` | **완전 일치** |
-| `bbox_xyxy` | ±1.0 px |
-| `confidence` | ±0.01 |
-| `segmentation` | 폴리곤 점 개수가 달라질 수 있어 **면적 ±5%** 로만 비교 |
-
-`verdict` 나 검출 개수가 달라지면 배포를 멈추세요. bbox 가 1px 넘게 움직이면 대개 라이브러리 버전이 바뀐 것입니다.
-
-### 현재 픽스처 (2026-08-03)
-
-| | |
-| --- | --- |
-| 이미지 | `CT__CT_cell_pouch_101_z_119__b82e0912.jpg` (셀 101, z축 119번, ROI 562x4000) |
-| sha256 | `2f749661c58cee23a6a8cecf5ea195647e86c33411e34649e37035dbd6c2d97f` |
-| 기대 출력 | `verdict REJECT` · 검출 1건 · `porosity` · conf **0.2705** · bbox `[269, 620, 274, 912]` |
-| 임계 여유 | **+0.2205** (conf 0.05 기준) |
-| 생성 환경 | Colab / Tesla T4 · ultralytics 8.4.115 · sahi 0.12.5 · torch 2.11.0+cu128 |
-| 검증 | **§6 통과 확인 (2026-08-03)** — 회귀 테스트가 실제로 도는 것까지 확인됨 |
-
-임계에서 0.22 떨어져 있어 라이브러리·GPU 가 조금 달라져도 검출이 사라지지 않습니다.
-`bbox` 좌표는 sahi 가 정수로 내므로 서브픽셀 흔들림이 없고, 실질 변동은 `confidence` 와
-`segmentation` 폴리곤뿐입니다.
-
----
-
-## 7. 한계 · 알아야 할 것
-
-- **새 셀 타입에서는 성능이 떨어집니다.** 위 운영점 수치는 학습에서 본 것과 같은 타입(동분포) 기준입니다.
-  완전히 새로운 타입에서는 눈에 띄게 하락하며, 그 경우 재보정/파인튜닝이 필요합니다. 배포 시나리오를
-  "같은 라인·같은 타입 재검사"로 볼지 "새 타입 유입"으로 볼지에 따라 기대치가 달라집니다.
+- **새 셀 타입에서는 성능이 떨어집니다.** §6 수치는 학습에서 본 것과 같은 타입(동분포) 기준입니다.
+  새 타입에서는 눈에 띄게 하락하며 재보정/파인튜닝이 필요합니다. 배포 시나리오를 "같은 라인·같은 타입
+  재검사"로 볼지 "새 타입 유입"으로 볼지에 따라 기대치가 달라집니다.
 - **mask mAP50 으로 이 모델을 평가하지 마세요.** 게이트가 하는 일은 마스크를 정확히 그리는 게 아니라
   불량 셀을 플래그하는 것이고, mAP 기준으로 고르면 실제로 더 나은 모델을 버리게 됩니다. 판정은
   image-level PASS/REJECT F1 과 localization-aware F1 로 합니다.
-- **슬라이스·conf·가중치는 한 세트입니다.** 셋 중 하나만 바꾸면 위 실측값은 무효입니다.
-- 물리 단위(mm)는 제공하지 않습니다. 원본에 voxel spacing 메타데이터가 없어 픽셀/복셀 단위까지만 나갑니다.
+- **슬라이스 · conf · 가중치 · imgsz 는 한 세트입니다.** 하나만 바꾸면 §6 실측값은 무효입니다.
+- **`half` 는 실측이 아니라 추정입니다.** ultralytics 기본 fp32 로 알고 있으나 `env.json` 에 안 찍혀
+  있습니다. T4/EC2 에서 fp16 으로 배포하려면 **골든 픽스처를 fp16 에서 다시 만들어야 합니다**
+  (confidence 가 ±0.01 허용오차를 넘길 수 있음).
+- **실효 imgsz 640 은 개선 여지일 수 있습니다.** 타일링의 논거가 "폭을 네이티브로 보존한다"인데
+  추론에서 슬라이스를 절반으로 줄이고 있으니, `image_size=1280` 이 recall 을 올릴 가능성이 있습니다.
+  다만 이건 **재측정이 필요한 실험**이지 카드 항목이 아닙니다. 켜면 운영점·픽스처를 다시 잡아야 합니다.
 - `volume.slice_scale_px` 는 슬라이스가 ROI 를 균등히 덮는다는 가정의 근사값입니다.
 
 ---
 
-## 8. 관련 파일
+## 10. `confidence` 산식 (요청 §7 답변)
+
+계약 §12.1 은 `PASS`(후보 있음) 의 최상위 `confidence` 를 `1 - (임계값 미만 최고 결함 점수)` 로 정의하는데,
+CT 는 `conf=0.05` 로 돌리므로 0.05 미만 후보가 애초에 반환되지 않습니다.
+
+**제안: 모델 conf 를 바닥값(예 0.01)으로 낮춰 돌리고, 0.05 판정은 애플리케이션 코드에서 합니다.**
+그러면 0.05 미만 최고 점수를 그대로 얻을 수 있습니다.
+
+이게 성립하는 이유는 **병합이 `NMS`/`IOU` 로 고정돼 있기 때문**입니다. NMS 는 점수가 높은 박스가 낮은
+박스를 지우는 방향으로만 작동하므로, 낮은 점수 후보를 더 넣어도 이미 살아남은 0.05 이상 박스는 영향을
+받지 않습니다. `max_det 300` 도 점수 상위부터 채우므로 (0.05 이상 박스가 300개를 넘지 않는 한) 마찬가지입니다.
+따라서 **conf 0.01 로 돌린 뒤 0.05 로 필터링한 결과 = conf 0.05 로 돌린 결과** 여야 합니다.
+
+⚠️ 두 가지 단서:
+
+1. **`GREEDYNMM`/`NMM` 에서는 성립하지 않습니다.** 그쪽은 박스를 지우는 게 아니라 **병합**하므로,
+   저점수 후보가 늘면 살아남는 박스의 모양 자체가 바뀝니다. §4 의 명시 지정을 풀면 이 제안도 무효입니다.
+2. **위는 NMS 의 성질에서 나온 추론이지 실측이 아닙니다.** 검증은 쌉니다 — `CONF = 0.01` 로 §2 를 돌리고
+   0.05 이상만 남긴 뒤 §6 을 태워서 골든 픽스처와 일치하면 확정입니다. 통과하면 이 변경은 공짜입니다.
+
+비용은 병합에 들어가는 박스 수가 늘어나는 만큼의 지연 증가뿐입니다.
+값이 비싸다고 판단되면 대안은 계약 산식을 `PASS` 일 때 `1.0` 고정으로 단순화하는 쪽입니다.
+
+---
+
+## 11. 남은 갭
+
+| 항목 | 상태 | 채우는 법 |
+| --- | --- | --- |
+| `weight_sha256` | 미기입 | Drive 의 사이드카 `ct_samedist_CHAMPION_ep6.json` 에 있음 |
+| `trained_at` | 미기입 | 학습 run 폴더 타임스탬프 확인 |
+| `half` 실측 | 추정 | `battery_infer_to_json.ipynb` §5 의 `get_cfg()` 캡처에 포함시켜 재실행 |
+| 골든 픽스처 장수 | 1 / 요청 20~30 | §2 가 이미 20장(REJECT 12 / PASS 8)을 돌립니다. §5 가 그중 1장만 굳히는 것이라, 전부 굳히도록 §5 를 늘리면 됩니다 |
+
+---
+
+## 12. 관련 파일
 
 | 파일 | 역할 |
 | --- | --- |
+| `ct.model_card.json` | 이 문서의 기계 판독 형태 (S3 배포본) |
 | `ct_output_schema.sample.json` | 출력 JSON 계약 (정본) |
-| `battery_infer_to_json.ipynb` | 추론 → JSON + 오버레이 + 좌표계 자체검증 |
+| `requirements.lock.txt` | 환경 고정 |
+| `fixtures/` | 골든 픽스처 |
+| `battery_infer_to_json.ipynb` | 추론 → JSON + 오버레이 + 좌표계 자체검증 + 픽스처 생성/검증 |
 | `battery_ct_tiled_v41_samedist.ipynb` | 학습 파이프라인 · 챔피언 백업 |
 | `battery_ct_tiled_v41_samedist_score_check.ipynb` | conf 스윕 점수 검증 |
