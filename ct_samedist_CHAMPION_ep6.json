@@ -1,0 +1,70 @@
+{
+  "champion": "samedist plain yolo11m-seg epoch6",
+  "run": "train_ct_tiled_v41_samedist",
+  "split": "동분포(known-type) 이미지단위 stratified — 47셀 전부 train·val 양쪽, 셀당 15% val, seed42",
+  "data_policy": "v4.1 nobig (대형 ≥25% 라벨 이미지 제외)",
+  "inference": "SAHI sliced slice=1280 / overlap=0.2",
+  "eval_set": "samedist val 전량 10,140장 (양 2,083 / 음 8,057) · slice 1280/ov0.2",
+  "operating_points": {
+    "deploy_gate": {
+      "conf": 0.05,
+      "img_P": 0.843,
+      "img_R": 0.977,
+      "img_F1": 0.905,
+      "loc_F1": 0.847,
+      "loc_pct": 0.867,
+      "FP": 378,
+      "FN": 48,
+      "note": "★배포 운영점. 비용비대칭 반영, 재검부하 6.6%"
+    },
+    "f1_max": {
+      "conf": 0.1,
+      "img_P": 0.91,
+      "img_R": 0.933,
+      "img_F1": 0.921,
+      "loc_F1": 0.865,
+      "loc_pct": 0.833,
+      "FP": 192,
+      "FN": 140,
+      "note": "모델 비교용. 배포용 아님"
+    },
+    "max_recall": {
+      "conf": 0.02,
+      "img_P": 0.719,
+      "img_R": 0.99,
+      "img_F1": 0.833,
+      "loc_F1": 0.792,
+      "loc_pct": 0.909,
+      "FP": 805,
+      "FN": 20,
+      "note": "재검부하 11.8%"
+    }
+  },
+  "runner_up": {
+    "epoch": 7,
+    "F1": 0.862,
+    "loc_F1": 0.815,
+    "note": "고recall형(@0.02 R0.994), F1·loc 모두 열세"
+  },
+  "fp_rate_on_normal": 0.0397,
+  "caveat": "peak 에폭을 이 val로 선택 → 약한 낙관(plateau 평탄해 위험 작음). 최적 conf는 배포 분포에 따라 이동(balanced 0.05 vs 자연분포 0.15).",
+  "headline": "알려진 타입 재검사 F1 0.921 (배포점 conf 0.05: R 0.977, loc 86.7%) / 완전 새 타입 0.663으로 재보정 필요",
+  "src": "/content/drive/MyDrive/kt_out/runs_main/train_ct_tiled_v41_samedist/weights/epoch6.pt",
+  "sha256": "2df71ae131ed93f0d4c4db793fd77bfbca98df8f655cdb4f853aaaeb49bbd418",
+  "slice_comparison": {
+    "note": "같은 모델·같은 데이터, slice만 변경 (conf 0.05)",
+    "slice_1024_ov0.4": {
+      "recall": 0.969,
+      "FP": 777,
+      "loc_F1": 0.797
+    },
+    "slice_1280_ov0.2": {
+      "recall": 0.977,
+      "FP": 378,
+      "loc_F1": 0.847
+    },
+    "why": "recall↑·FP↓ 동시 = 임계 트레이드가 아니라 탐지기 개선 (학습 TILE 1280과 추론 slice 일치 + 장당 슬라이스 7→4)"
+  },
+  "updated": "2026-08-03 (0728 재측정 slice 1280/ov0.2 반영)",
+  "size_bytes": 179613893
+}
