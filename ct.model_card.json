@@ -1,154 +1,192 @@
 {
-  "schema_version": "1.0",
-  "task": "detect-ct",
-  "modality": "CT",
-  "updated_at": "2026-08-04",
-
-  "identity": {
-    "weight_file": "ct_samedist_CHAMPION_ep6.pt",
-    "weight_sha256": null,
-    "architecture": "yolo11m-seg",
-    "train_run": "train_ct_tiled_v41_samedist",
-    "epoch": 6,
-    "source_repo": "aivle-bigproject-16/kt-aivle-big-proj-model-ct",
-    "source_commit": "dbfa3c54f40724ef612e5f57584ea506e582cfc8",
-    "trained_at": null
-  }, 
-
-  "runtime": {
-    "python": "3.12.13",
-    "torch": "2.11.0+cu128",
-    "torch_cuda": "12.8",
-    "torchvision": "0.26.0+cu128",
-    "ultralytics": "8.4.115",
-    "sahi": "0.12.5",
-    "numpy": "2.0.2",
-    "pillow": "11.3.0",
-    "lockfile": "requirements.lock.txt",
-    "measured_on": "2026-08-03",
-    "measured_gpu": "Tesla T4",
-    "note": "shapely·pandas·pyyaml 은 학습 전용. 서빙 이미지에는 위 목록만 있으면 된다."
+ "schema_version": "1.0",
+ "task": "detect-ct",
+ "modality": "CT",
+ "updated_at": "2026-08-04",
+ "identity": {
+  "weight_file": "ct_samedist_CHAMPION_ep6.pt",
+  "weight_sha256": null,
+  "architecture": "yolo11m-seg",
+  "train_run": "train_ct_tiled_v41_samedist",
+  "epoch": 6,
+  "source_repo": "aivle-bigproject-16/kt-aivle-big-proj-model-ct",
+  "source_commit": "dbfa3c54f40724ef612e5f57584ea506e582cfc8",
+  "trained_at": null
+ },
+ "runtime": {
+  "python": "3.12.13",
+  "torch": "2.11.0+cu128",
+  "torch_cuda": "12.8",
+  "torchvision": "0.26.0+cu128",
+  "ultralytics": "8.4.115",
+  "sahi": "0.12.5",
+  "numpy": "2.0.2",
+  "pillow": "11.3.0",
+  "lockfile": "requirements.lock.txt",
+  "measured_on": "2026-08-03",
+  "measured_gpu": "Tesla T4",
+  "note": "shapely·pandas·pyyaml 은 학습 전용. 서빙 이미지에는 위 목록만 있으면 된다."
+ },
+ "input": {
+  "input_type": "file_path",
+  "color_space": "RGB",
+  "imgsz": 1280,
+  "letterbox": true,
+  "normalize": "ultralytics 기본 (0-1 스케일, mean/std 정규화 없음)",
+  "roi": "납품 이미지 자체가 ROI. 별도 crop 불필요",
+  "roi_size_fixed": false,
+  "roi_size_examples": {
+   "cell_101_y축": [
+    562,
+    4000
+   ],
+   "cell_101_z축": [
+    562,
+    1152
+   ]
   },
-
-  "input": {
-    "input_type": "file_path",
-    "color_space": "RGB",
-    "imgsz": 640,
-    "letterbox": true,
-    "normalize": "ultralytics 기본 (0-1 스케일, mean/std 정규화 없음)",
-    "roi": "납품 이미지 자체가 ROI. 별도 crop 불필요",
-    "roi_size_fixed": false,
-    "roi_size_examples": {
-      "cell_101_y축": [562, 4000],
-      "cell_101_z축": [562, 1152]
-    },
-    "note": [
-      "imgsz 640 은 학습값(1280)이 아니라 추론 실효값이다. sahi 0.12.5 는 AutoDetectionModel 에 image_size 를 넘겼을 때만 ultralytics 에 imgsz 를 전달하는데, 우리 코드는 넘기지 않으므로 ultralytics 기본 640 이 적용된다. 즉 1280 슬라이스가 640 으로 리사이즈된 뒤 추론된다. 아래 performance 수치는 전부 이 경로에서 잰 값이다.",
-      "image_size=1280 을 넘기면 결과가 통째로 달라진다. 운영점·골든 픽스처 전부 무효가 되므로 임의로 켜지 말 것.",
-      "우리 경로는 sahi 에 파일 경로를 넘기고 sahi 가 RGB 로 읽어 내부에서 BGR 로 뒤집어 ultralytics 에 준다. numpy 배열로 직접 넘길 경우 RGB 여야 하며, cv2.imread 결과(BGR)를 그대로 넘기면 채널이 뒤집힌다.",
-      "ROI 크기는 셀·축마다 다르다(축 단면이라 축별로 축 조합이 바뀜). 고정 크기를 가정하지 말 것."
-    ]
-  },
-
-  "inference": {
-    "conf": 0.05,
-    "conf_is_paired_with_weight": "ct_samedist_CHAMPION_ep6.pt",
-    "iou": 0.7,
-    "max_det": 300,
-    "agnostic_nms": false,
-    "half": false,
-    "device": "cuda:0",
-    "explicitly_set_in_code": ["conf", "device", "sahi.slice", "sahi.overlap", "sahi.postprocess_type", "sahi.postprocess_match_metric", "sahi.postprocess_match_threshold"],
-    "library_defaults_not_set_in_code": {
-      "iou": "ultralytics 8.4.115 기본값 (get_cfg 실측)",
-      "max_det": "ultralytics 8.4.115 기본값 (get_cfg 실측)",
-      "agnostic_nms": "ultralytics 기본값. 단일 클래스라 영향 없음",
-      "half": "ultralytics 기본값 = fp32. 실측 기록 없음(추정). fp16 으로 배포하려면 골든 픽스처를 fp16 에서 다시 만들 것",
-      "imgsz": "ultralytics 기본값 640. input.note 참고"
-    },
-    "sahi": {
-      "enabled": true,
-      "slice": 1280,
-      "overlap": 0.2,
-      "postprocess_type": "NMS",
-      "postprocess_match_metric": "IOU",
-      "postprocess_match_threshold": 0.5,
-      "postprocess_class_agnostic": false,
-      "perform_standard_pred": true,
-      "batch_size": 1,
-      "note": [
-        "slice 1280 = 학습 TILE. 1024/0.4 로 돌리면 recall 이 떨어지고 오탐이 2배가 된다. 바꾸지 말 것.",
-        "sahi 는 conf 가 낮으면(우리 0.05) 기본 GREEDYNMM/IOS 를 NMS/IOU 로 조용히 바꾸고 경고만 찍는다. 그래서 NMS/IOU 를 코드에 명시해 박아 두었다(동작 동일, 골든 픽스처로 확인). force_postprocess_type=True 를 주지 않으면 명시값도 자동전환 대상이므로, GREEDYNMM 을 쓰고 싶다면 그 플래그가 필요하다.",
-        "perform_standard_pred 는 sahi 기본값 true 라, 슬라이스 추론 외에 원본 전체를 한 번 더 추론해 병합한다. 코드가 끄지 않았으므로 배포도 이 상태다."
-      ]
-    }
-  },
-
-  "output": {
-    "model_classes": { "0": "porosity" },
-    "class_map": { "porosity": "MICRO_DEFECT" },
-    "bbox_format": "xyxy",
-    "contract_bbox_field": "bbox_xywh",
-    "coordinate_reference": "roi_image",
-    "coordinate_origin": "top-left",
-    "coordinate_unit": "pixel",
-    "verdict_rule": "num_detections > 0 → REJECT, 아니면 PASS",
-    "schema": "ct_output_schema.sample.json",
-    "note": [
-      "단일 클래스다. detections[].class 에는 정수 id 가 아니라 문자열 'porosity' 가 들어간다.",
-      "계약이 요구하는 {x, y, width, height} 는 출력 JSON 의 bbox_xywh 필드가 그대로 대응한다. 변환 불필요.",
-      "FAIL 은 이 모델 소관이 아니다(촬영 품질 분류기). 여기서는 PASS/REJECT 만 나온다.",
-      "3D 위치는 cell.axis + cell.slice_index + volume.axis_mapping 으로 계산한다. 단면 한 장의 bbox 는 2축뿐이다."
-    ]
-  },
-
-  "performance": {
-    "metric": "image-level PASS/REJECT",
-    "eval_split": "동분포(known-type) — 47셀 전부 train·val 양쪽, 이미지 단위 stratified",
-    "operating_points": [
-      { "conf": 0.02, "recall": 0.990, "recheck_load": 0.118, "role": "최대 recall" },
-      { "conf": 0.05, "recall": 0.977, "localization": 0.867, "recheck_load": 0.066, "role": "배포 기본값" },
-      { "conf": 0.10, "f1": 0.921, "role": "F1 최대. 모델 비교용이지 배포용 아님" }
-    ],
-    "note": "불량 게이트라 recall 우선이다. 위 값은 samedist ep6 + slice1280/ov0.2 + imgsz 640 조합 전용이며, 셋 중 하나만 바뀌어도 무효다. 새 셀 타입에서는 눈에 띄게 떨어진다."
-  },
-
-  "fixtures": {
-    "path": "fixtures/",
-    "count": 1,
-    "requested_count": "20~30",
-    "files": ["golden_ct.jpg", "golden_ct.json", "golden_ct.sha256", "env.json"],
-    "golden": {
-      "image": "CT__CT_cell_pouch_101_z_119__b82e0912.jpg",
-      "image_size": [562, 1152],
-      "sha256": "2f749661c58cee23a6a8cecf5ea195647e86c33411e34649e37035dbd6c2d97f",
-      "verdict": "REJECT",
-      "num_detections": 1,
-      "class": "porosity",
-      "confidence": 0.2705,
-      "bbox_xyxy": [269, 620, 274, 912],
-      "threshold_margin": 0.2205
-    },
-    "tolerance": {
-      "verdict": "완전 일치",
-      "num_detections": "완전 일치",
-      "class": "완전 일치",
-      "bbox_xyxy_px": 1.0,
-      "confidence": 0.01,
-      "segmentation_area_ratio": 0.05
-    },
-    "verified": "2026-08-03, battery_infer_to_json.ipynb §6 통과",
-    "note": "골든은 임계에서 가장 멀리 떨어진 케이스로 골랐다(여유 +0.22). 임계에 붙은 케이스를 굳히면 GPU·라이브러리가 조금만 달라져도 검출이 사라져 verdict 가 뒤집힌다."
-  },
-
-  "known_gaps": [
-    "identity.weight_sha256 — 가중치 옆 사이드카(ct_samedist_CHAMPION_ep6.json)에 있다. Drive 접근 시 채울 것",
-    "identity.trained_at — 학습 시각 기록을 아직 못 찾았다",
-    "inference.half — ultralytics 기본값 추정. get_cfg 실측으로 확정 필요",
-    "fixtures.count — 1장. 요청은 20~30장이고, §2 가 이미 20장(REJECT 12/PASS 8)을 돌리므로 굳히는 코드만 늘리면 된다"
+  "note": [
+   "imgsz 1280 = 학습값이자 실효 추론값이다. sahi 0.12.5 는 image_size 를 넘겼을 때만 ultralytics 에 imgsz 를 전달하지만, ultralytics 8.4.115 는 체크포인트의 train_args 에서 imgsz 를 복원한다(_reset_ckpt_args include={\"imgsz\",\"data\",\"task\",\"single_cls\"}). 따라서 image_size 를 안 넘겨도 슬라이스 1280 이 1280 그대로 추론된다. 🔴 이전 카드의 640 은 오기다 — get_cfg() 글로벌 기본값을 읽은 결과이며, imgsz 는 체크포인트에서 복원되는 키라 그 방법이 통하지 않는다. 2026-08-06 정정.",
+   "image_size=1280 을 넘기면 결과가 통째로 달라진다. 운영점·골든 픽스처 전부 무효가 되므로 임의로 켜지 말 것.",
+   "우리 경로는 sahi 에 파일 경로를 넘기고 sahi 가 RGB 로 읽어 내부에서 BGR 로 뒤집어 ultralytics 에 준다. numpy 배열로 직접 넘길 경우 RGB 여야 하며, cv2.imread 결과(BGR)를 그대로 넘기면 채널이 뒤집힌다.",
+   "ROI 크기는 셀·축마다 다르다(축 단면이라 축별로 축 조합이 바뀜). 고정 크기를 가정하지 말 것."
   ],
-
-  "superseded": {
-    "weight_sidecar": "가중치 옆 ct_samedist_CHAMPION_ep6.json 의 inference·operating_points 는 slice 1024 / overlap 0.4 시절 값이다. ai-infer 가 사이드카를 읽게 짜면 계약 위반값(1024)을 쓴다. 이 파일이 정본이다."
+  "_imgsz_basis": "① 소스: ultralytics 8.4.115 _reset_ckpt_args include={\"imgsz\",\"data\",\"task\",\"single_cls\"} + 체크포인트 train_args.imgsz=1280 (2026-08-06) · ② 런타임: 백엔드 확인 — image_size 미지정 시 골든 픽스처 정확 재현, imgsz=640 강제 시 검출 0건 (2026-08-07). 확정."
+ },
+ "inference": {
+  "conf": 0.05,
+  "conf_is_paired_with_weight": "ct_samedist_CHAMPION_ep6.pt",
+  "iou": 0.7,
+  "max_det": 300,
+  "agnostic_nms": false,
+  "half": false,
+  "device": "cuda:0",
+  "explicitly_set_in_code": [
+   "conf",
+   "device",
+   "sahi.slice",
+   "sahi.overlap",
+   "sahi.postprocess_type",
+   "sahi.postprocess_match_metric",
+   "sahi.postprocess_match_threshold"
+  ],
+  "library_defaults_not_set_in_code": {
+   "iou": "ultralytics 8.4.115 기본값 (get_cfg 실측)",
+   "max_det": "ultralytics 8.4.115 기본값 (get_cfg 실측)",
+   "agnostic_nms": "ultralytics 기본값. 단일 클래스라 영향 없음",
+   "half": "ultralytics 기본값 = fp32. 실측 기록 없음(추정). fp16 으로 배포하려면 골든 픽스처를 fp16 에서 다시 만들 것",
+   "imgsz": "🔴 이 항목은 기본값이 아니다 — 체크포인트에서 복원된 1280. input.note 참고"
+  },
+  "sahi": {
+   "enabled": true,
+   "slice": 1280,
+   "overlap": 0.2,
+   "postprocess_type": "NMS",
+   "postprocess_match_metric": "IOU",
+   "postprocess_match_threshold": 0.5,
+   "postprocess_class_agnostic": false,
+   "perform_standard_pred": true,
+   "batch_size": 1,
+   "note": [
+    "slice 1280 = 학습 TILE. 1024/0.4 로 돌리면 recall 이 떨어지고 오탐이 2배가 된다. 바꾸지 말 것.",
+    "sahi 는 conf 가 낮으면(우리 0.05) 기본 GREEDYNMM/IOS 를 NMS/IOU 로 조용히 바꾸고 경고만 찍는다. 그래서 NMS/IOU 를 코드에 명시해 박아 두었다(동작 동일, 골든 픽스처로 확인). force_postprocess_type=True 를 주지 않으면 명시값도 자동전환 대상이므로, GREEDYNMM 을 쓰고 싶다면 그 플래그가 필요하다.",
+    "perform_standard_pred 는 sahi 기본값 true 라, 슬라이스 추론 외에 원본 전체를 한 번 더 추론해 병합한다. 코드가 끄지 않았으므로 배포도 이 상태다."
+   ]
   }
+ },
+ "output": {
+  "model_classes": {
+   "0": "porosity"
+  },
+  "class_map": {
+   "porosity": "MICRO_DEFECT"
+  },
+  "bbox_format": "xyxy",
+  "contract_bbox_field": "bbox_xywh",
+  "coordinate_reference": "roi_image",
+  "coordinate_origin": "top-left",
+  "coordinate_unit": "pixel",
+  "verdict_rule": "num_detections > 0 → REJECT, 아니면 PASS",
+  "schema": "ct_output_schema.sample.json",
+  "note": [
+   "단일 클래스다. detections[].class 에는 정수 id 가 아니라 문자열 'porosity' 가 들어간다.",
+   "계약이 요구하는 {x, y, width, height} 는 출력 JSON 의 bbox_xywh 필드가 그대로 대응한다. 변환 불필요.",
+   "FAIL 은 이 모델 소관이 아니다(촬영 품질 분류기). 여기서는 PASS/REJECT 만 나온다.",
+   "3D 위치는 cell.axis + cell.slice_index + volume.axis_mapping 으로 계산한다. 단면 한 장의 bbox 는 2축뿐이다."
+  ]
+ },
+ "performance": {
+  "metric": "image-level PASS/REJECT",
+  "eval_split": "동분포(known-type) — 47셀 전부 train·val 양쪽, 이미지 단위 stratified",
+  "operating_points": [
+   {
+    "conf": 0.02,
+    "recall": 0.99,
+    "recheck_load": 0.118,
+    "role": "최대 recall"
+   },
+   {
+    "conf": 0.05,
+    "recall": 0.977,
+    "localization": 0.867,
+    "recheck_load": 0.066,
+    "role": "배포 기본값"
+   },
+   {
+    "conf": 0.1,
+    "f1": 0.921,
+    "role": "F1 최대. 모델 비교용이지 배포용 아님"
+   }
+  ],
+  "note": "불량 게이트라 recall 우선이다. 위 값은 samedist ep6 + slice1280/ov0.2 + imgsz 1280 조합 전용이며, 셋 중 하나만 바뀌어도 무효다. 새 셀 타입에서는 눈에 띄게 떨어진다."
+ },
+ "fixtures": {
+  "path": "fixtures/",
+  "count": 1,
+  "requested_count": "20~30",
+  "files": [
+   "golden_ct.jpg",
+   "golden_ct.json",
+   "golden_ct.sha256",
+   "env.json"
+  ],
+  "golden": {
+   "image": "CT__CT_cell_pouch_101_z_119__b82e0912.jpg",
+   "image_size": [
+    562,
+    1152
+   ],
+   "sha256": "2f749661c58cee23a6a8cecf5ea195647e86c33411e34649e37035dbd6c2d97f",
+   "verdict": "REJECT",
+   "num_detections": 1,
+   "class": "porosity",
+   "confidence": 0.2705,
+   "bbox_xyxy": [
+    269,
+    620,
+    274,
+    912
+   ],
+   "threshold_margin": 0.2205
+  },
+  "tolerance": {
+   "verdict": "완전 일치",
+   "num_detections": "완전 일치",
+   "class": "완전 일치",
+   "bbox_xyxy_px": 1.0,
+   "confidence": 0.01,
+   "segmentation_area_ratio": 0.05
+  },
+  "verified": "2026-08-03, battery_infer_to_json.ipynb §6 통과",
+  "note": "골든은 임계에서 가장 멀리 떨어진 케이스로 골랐다(여유 +0.22). 임계에 붙은 케이스를 굳히면 GPU·라이브러리가 조금만 달라져도 검출이 사라져 verdict 가 뒤집힌다."
+ },
+ "known_gaps": [
+  "identity.weight_sha256 — 가중치 옆 사이드카(ct_samedist_CHAMPION_ep6.json)에 있다. Drive 접근 시 채울 것",
+  "identity.trained_at — 학습 시각 기록을 아직 못 찾았다",
+  "inference.half — ultralytics 기본값 추정. get_cfg 실측으로 확정 필요",
+  "fixtures.count — 1장. 요청은 20~30장이고, §2 가 이미 20장(REJECT 12/PASS 8)을 돌리므로 굳히는 코드만 늘리면 된다"
+ ],
+ "superseded": {
+  "weight_sidecar": "가중치 옆 ct_samedist_CHAMPION_ep6.json 의 inference·operating_points 는 slice 1024 / overlap 0.4 시절 값이다. ai-infer 가 사이드카를 읽게 짜면 계약 위반값(1024)을 쓴다. 이 파일이 정본이다."
+ }
 }
