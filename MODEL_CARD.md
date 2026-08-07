@@ -29,7 +29,7 @@ CT 단면 이미지에서 porosity(기공)를 찾아 셀을 `PASS` / `REJECT` �
 | 5 골든 픽스처 | 부분 | §7 — **1장**. 요청은 20~30장 |
 | 6 model_card.json | ✅ | `ct.model_card.json` |
 | 7 confidence 산식 | 답변 | §10 |
-
+ 
 ---
 
 ## 1. 식별

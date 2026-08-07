@@ -13,7 +13,7 @@
     "source_repo": "aivle-bigproject-16/kt-aivle-big-proj-model-ct",
     "source_commit": "dbfa3c54f40724ef612e5f57584ea506e582cfc8",
     "trained_at": null
-  },
+  }, 
 
   "runtime": {
     "python": "3.12.13",
